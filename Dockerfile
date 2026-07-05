@@ -21,11 +21,11 @@ RUN ./gradlew bootJar --no-daemon -x test
 # ================================
 # Stage 2: Runtime
 # ================================
-FROM eclipse-temurin:25-jre
+FROM eclipse-temurin:25-jre-alpine
 
 WORKDIR /app
 
-RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
+RUN addgroup -S appgroup && adduser -S -G appgroup appuser
 
 COPY --from=builder /app/build/libs/*.jar app.jar
 
