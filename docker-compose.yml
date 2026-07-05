@@ -4,6 +4,7 @@ networks:
 
 volumes:
   postgres-data:
+  traefik-certificates:
 
 services:
   postgres:
@@ -33,10 +34,17 @@ services:
         condition: service_healthy
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.backend.rule=PathPrefix(`/api`)"
-      - "traefik.http.routers.backend.entrypoints=web"
-      - "traefik.http.middlewares.backend-stripprefix.stripprefix.prefixes=/api"
-      - "traefik.http.routers.backend.middlewares=backend-stripprefix"
+
+      - "traefik.http.routers.backend-http.rule=PathPrefix(`/api`)"
+      - "traefik.http.routers.backend-http.entrypoints=web"
+      - "traefik.http.routers.backend-http.middlewares=redirect-to-https"
+
+      - "traefik.http.routers.backend-https.rule=PathPrefix(`/api`)"
+      - "traefik.http.routers.backend-https.entrypoints=websecure"
+      - "traefik.http.routers.backend-https.tls=true"
+
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+
       - "traefik.http.services.backend.loadbalancer.server.port=8080"
 
   traefik:
@@ -48,10 +56,13 @@ services:
       - "--providers.docker.endpoint=unix:///var/run/docker.sock"
       - "--providers.docker.exposedbydefault=false"
       - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
     ports:
       - "80:80"
+      - "443:443"
       - "8081:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      - traefik-certificates:/letsencrypt
     networks:
       - app-network
