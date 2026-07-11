@@ -50,6 +50,46 @@ services:
 
       - "traefik.http.services.backend.loadbalancer.server.port=8080"
 
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+    environment:
+      INTERNAL_API_URL: http://backend:8080
+    networks:
+      - app-network
+    depends_on:
+      - backend
+    labels:
+      - "traefik.enable=true"
+
+      - "traefik.http.routers.frontend-internal-api-http.rule=Path(`/api/login`) || Path(`/api/logout`) || Path(`/api/me`)"
+      - "traefik.http.routers.frontend-internal-api-http.entrypoints=web"
+      - "traefik.http.routers.frontend-internal-api-http.middlewares=redirect-to-https"
+      - "traefik.http.routers.frontend-internal-api-http.priority=100"
+      - "traefik.http.routers.frontend-internal-api-http.service=frontend"
+
+      - "traefik.http.routers.frontend-internal-api-https.rule=Path(`/api/login`) || Path(`/api/logout`) || Path(`/api/me`)"
+      - "traefik.http.routers.frontend-internal-api-https.entrypoints=websecure"
+      - "traefik.http.routers.frontend-internal-api-https.tls.certresolver=myresolver"
+      - "traefik.http.routers.frontend-internal-api-https.tls.domains[0].main=localhost"
+      - "traefik.http.routers.frontend-internal-api-https.priority=100"
+      - "traefik.http.routers.frontend-internal-api-https.service=frontend"
+
+      - "traefik.http.routers.frontend-http.rule=PathPrefix(`/`)"
+      - "traefik.http.routers.frontend-http.entrypoints=web"
+      - "traefik.http.routers.frontend-http.middlewares=redirect-to-https"
+      - "traefik.http.routers.frontend-http.priority=1"
+
+      - "traefik.http.routers.frontend-https.rule=PathPrefix(`/`)"
+      - "traefik.http.routers.frontend-https.entrypoints=websecure"
+      - "traefik.http.routers.frontend-https.tls.certresolver=myresolver"
+      - "traefik.http.routers.frontend-https.tls.domains[0].main=localhost"
+      - "traefik.http.routers.frontend-https.priority=1"
+
+      - "traefik.http.services.frontend.loadbalancer.server.port=3000"
+
   traefik:
     image: traefik:v2.11
     command:
