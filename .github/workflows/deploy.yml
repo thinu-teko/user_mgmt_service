@@ -1,21 +1,80 @@
-name: Deploy
+name: Build and Promote
 
 on:
   push:
     branches:
       - main
 
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  BACKEND_IMAGE: ghcr.io/thinu-teko/backend
+  FRONTEND_IMAGE: ghcr.io/thinu-teko/frontend
+
 jobs:
-  deploy:
+  build-and-promote:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.0.3
+      - name: Checkout Core Repository
+        uses: actions/checkout@v4
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
         with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-            cd /opt/user-mgmt-service
-            git pull origin main
-            docker compose up --build -d
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Backend Image
+        run: |
+          docker build \
+            -t ${{ env.BACKEND_IMAGE }}:${{ github.sha }} \
+            .
+
+      - name: Push Backend Image
+        run: |
+          docker push ${{ env.BACKEND_IMAGE }}:${{ github.sha }}
+
+      - name: Build Frontend Image
+        run: |
+          docker build \
+            --build-arg NEXT_PUBLIC_API_URL=/api \
+            -t ${{ env.FRONTEND_IMAGE }}:${{ github.sha }} \
+            ./frontend
+
+      - name: Push Frontend Image
+        run: |
+          docker push ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
+
+      - name: Checkout Ops Repository
+        uses: actions/checkout@v4
+        with:
+          repository: tekolino/user_mgmt_service-ops
+          token: ${{ secrets.OPS_REPO_TOKEN }}
+          path: ops-repo
+
+      - name: Install yq
+        run: |
+          sudo wget -qO /usr/local/bin/yq \
+            https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+
+      - name: Update image tags
+        working-directory: ops-repo
+        run: |
+          yq -i '.backend.image.tag = "${{ github.sha }}"' chart/values.yaml
+          yq -i '.frontend.image.tag = "${{ github.sha }}"' chart/values.yaml
+
+      - name: Promote to Ops Repository
+        working-directory: ops-repo
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          git add chart/values.yaml
+          git commit -m "Promote images to ${{ github.sha }}"
+          git push origin main
