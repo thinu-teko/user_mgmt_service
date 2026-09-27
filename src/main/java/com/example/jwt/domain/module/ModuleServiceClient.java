@@ -7,6 +7,9 @@ import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 
 @Service
@@ -29,10 +32,17 @@ public class ModuleServiceClient {
     @Retry(name = "moduleService")
     @CircuitBreaker(name = "moduleService")
     public void checkModule(UUID moduleId) {
-        restClient.get()
-            .uri("/api/v1/modules/{moduleId}", moduleId)
-            .retrieve()
-            .toBodilessEntity();
+        try {
+            restClient.get()
+                .uri("/api/v1/modules/{moduleId}", moduleId)
+                .retrieve()
+                .toBodilessEntity();
+        } catch (HttpClientErrorException.NotFound ex) {
+            throw new ResponseStatusException(
+                HttpStatus.NOT_FOUND,
+                "Module not found",
+                ex);
+        }
     }
 
     @Retry(name = "moduleService")
