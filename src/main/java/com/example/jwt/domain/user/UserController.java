@@ -64,6 +64,16 @@ public class UserController {
     return ResponseEntity.ok(userMapper.toDTO(user));
   }
 
+
+  @PutMapping("/{userId}/modules/{moduleId}")
+  public ResponseEntity<Void> assignModule(
+      @PathVariable UUID userId,
+      @PathVariable UUID moduleId) {
+
+    userService.assignModule(userId, moduleId);
+    return ResponseEntity.noContent().build();
+  }
+
   @DeleteMapping("/{id}")
   @PreAuthorize("hasAuthority('USER_DELETE')")
   public ResponseEntity<Void> deleteById(@PathVariable UUID id) {
